@@ -201,20 +201,9 @@ func (s *SmartContract) createWallet(APIstub shim.ChaincodeStubInterface, args [
 		return shim.Error("Incorrect number of arguments. Expecting 3")
 	}
 
-	/** We need to sanitize the input */
-	if len(args[0] <= 0) {
-		return shim.Error("Arguments must be non-empty strings")
-	}
-	if len(args[1] <= 0) {
-		return shim.Error("Arguments must be non-empty strings")
-	}
-	if len(args[2] <= 0) {
-		return shim.Error("Arguments must be non-empty strings")
-	}
-
 	/** We create the wallet */
 	var wallet = Wallet{
-		id:      md5.Sum(args[0]),
+		id:      md5.Sum([]byte(args[0])),
 		balance: strconv.Atoi(args[1]),
 		owner:   args[2],
 	}
@@ -303,7 +292,7 @@ func (s *SmartContract) initLedger(APIstub shim.ChaincodeStubInterface, args []s
 	i := 0
 	for i < len(args[0]) {
 		wallet := Wallet{
-			id:      md5.Sum(args[0]),
+			id:      md5.Sum([]byte(args[0])]),
 			balance: strconv.Atoi(args[1]),
 			owner:   args[2],
 		}
