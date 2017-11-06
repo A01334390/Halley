@@ -56,8 +56,8 @@ func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) sc.Response 
 		return s.createWallet(APIstub, args)
 	} else if function == "queryWallet" {
 		return s.queryWallet(APIstub, args)
-	} else if function == "delete" {
-		return s.delete(APIstub, delete)
+	} else if function == "deleteWallet" {
+		return s.deleteWallet(APIstub, args)
 	}
 
 	// If nothing was invoked, launch an error
@@ -221,13 +221,13 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 		return shim.Error(jsonResp)
 	}
 
-	jsonResp := "{\"ID\":\"" + id + "\",\"info\":\"" + string(valAsBytes) + "\"}"
+	jsonResp := "{\"ID\":\"" + id + "\",\"RESULT\":\"" + string(valAsBytes) + "\"}"
 	fmt.Printf("Query Response:%s\n", jsonResp)
 	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
 	return shim.Success(valAsBytes)
 }
 
-func (s *SmartContract) delete(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+func (s *SmartContract) deleteWallet(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
 	if len(args) < 1 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
