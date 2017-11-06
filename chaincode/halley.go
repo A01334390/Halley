@@ -205,7 +205,7 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 	id = args[0]
 	valAsBytes, err := APIstub.GetState(id) // Get the wallet from the chaincode state
 	if err != nil {
-		jsonResp = "{\"Error\":\"Failed to get state for " + name + "\"}"
+		jsonResp = "{\"Error\":\"Failed to get state for " + id + "\"}"
 		return shim.Error(jsonResp)
 	} else if valAsBytes == nil {
 		jsonResp = "{\"Error\":\"Wallet does not exist: " + id + "\"}"
