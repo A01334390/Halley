@@ -110,12 +110,22 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 		return shim.Error("Failed to unmarshal wallet")
 	}
 
+	fmt.Println("FROM WALLET")
+	fmt.Println("ID: " + from.id)
+	fmt.Println("BALANCE: " + from.balance)
+	fmt.Println("OWNER: " + owner.balance)
+
 	/*Unmarshal [TO] wallet */
 	to := Wallet{}
 	err = json.Unmarshal(toAsBytes, &to)
 	if err != nil {
 		return shim.Error("Failed to unmarshal wallet")
 	}
+
+	fmt.Println("TO WALLET")
+	fmt.Println("ID: " + to.id)
+	fmt.Println("BALANCE: " + to.balance)
+	fmt.Println("OWNER: " + to.owner)
 
 	/* Make the transaction */
 	funds, err := strconv.Atoi(args[2])
@@ -124,19 +134,23 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 	}
 	from.balance = from.balance - funds
 	to.balance = to.balance + funds
-	fmt.Println(" TX FROM: " + from.id + " TO: " + to.id + "FUNDS: " + funds)
+
+	fmt.Println("TO WALLET")
+	fmt.Println("BALANCE: " + to.balance)
+	fmt.Println("FROM WALLET")
+	fmt.Println("BALANCE: " + from.balance)
 
 	/* Prepare to store into ledger again */
 	fromJSONasBytes, _ := json.Marshal(from)
 	err = APIstub.PutState(from.id, fromJSONasBytes)
 	if err != nil {
-		return shim.Error("Error saving the state of wallet")
+		return shim.Error("Error saving the state of wallet [F]")
 	}
 
 	toJSONasBytes, _ := json.Marshal(to)
 	err = APIstub.PutState(to.id, toJSONasBytes)
 	if err != nil {
-		return shim.Error("Error saving the state of the wallet")
+		return shim.Error("Error saving the state of the wallet [T]")
 	}
 
 	/* Success! */
