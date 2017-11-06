@@ -199,13 +199,18 @@ func (s *SmartContract) getWalletsByRange(APIstub shim.ChaincodeStubInterface, a
 */
 
 func (s *SmartContract) createWallet(APIstub shim.ChaincodeStubInterface, args[]string) sc.Response {
-	var error
 	if len(args) !=3 {
 		return shim.Error("Incorrect number of arguments. Expecting 3")
 	}
 
 	/** We need to sanitize the input */
-	if len(args[0] <=0 || len(args[1] <=0 || len(args[2] <=0){
+	if len(args[0] <=0){
+		return shim.Error("Arguments must be non-empty strings")
+	}
+	if len(args[1] <=0){
+		return shim.Error("Arguments must be non-empty strings")
+	}
+	if len(args[2] <=0){
 		return shim.Error("Arguments must be non-empty strings")
 	}
 
