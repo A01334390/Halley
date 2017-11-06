@@ -124,6 +124,7 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 	}
 	from.balance = from.balance - funds
 	to.balance = to.balance + funds
+	fmt.Println(" TX FROM: " + from.id + " TO: " + to.id + "FUNDS: " + funds)
 
 	/* Prepare to store into ledger again */
 	fromJSONasBytes, _ := json.Marshal(from)
@@ -202,6 +203,8 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
 
+	fmt.Println(" ===== START QUERYING WALLET =====")
+
 	id = args[0]
 	valAsBytes, err := APIstub.GetState(id) // Get the wallet from the chaincode state
 	if err != nil {
@@ -212,5 +215,6 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 		return shim.Error(jsonResp)
 	}
 
+	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
 	return shim.Success(valAsBytes)
 }
