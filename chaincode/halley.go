@@ -132,13 +132,13 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 	fromJSONasBytes, _ := json.Marshal(from)
 	err = APIstub.PutState(from.id, fromJSONasBytes)
 	if err != nil {
-		return shim.Error("Error saving the state of wallet [F]" + err)
+		return shim.Error("Error saving the state of wallet [F]")
 	}
 
 	toJSONasBytes, _ := json.Marshal(to)
 	err = APIstub.PutState(to.id, toJSONasBytes)
 	if err != nil {
-		return shim.Error("Error saving the state of the wallet [T]" + err)
+		return shim.Error("Error saving the state of the wallet [T]")
 	}
 
 	/* Success! */
@@ -216,10 +216,8 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 		jsonResp = "{\"Error\":\"Wallet does not exist: " + id + "\"}"
 		return shim.Error(jsonResp)
 	}
-
-	jsonResp = "{\"ID\":\"" + id + "\",\"RESULT\":\"" + string(valAsBytes) + "\"}"
 	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
-	return shim.Success(jsonResp)
+	return shim.Success(valAsBytes)
 }
 
 func (s *SmartContract) deleteWallet(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
