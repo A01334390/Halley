@@ -292,7 +292,7 @@ func (s *SmartContract) initLedger(APIstub shim.ChaincodeStubInterface, args []s
 	i := 0
 	for i < len(args[0]) {
 		wallet := Wallet{
-			id:      md5.Sum([]byte(args[0])]),
+			id:      md5.Sum([]byte(args[0])),
 			balance: strconv.Atoi(args[1]),
 			owner:   args[2],
 		}
