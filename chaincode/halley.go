@@ -124,25 +124,21 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 	if err != nil {
 		return shim.Error("Failed to parse into Integer")
 	}
+
 	from.balance = from.balance - funds
 	to.balance = to.balance + funds
-
-	fmt.Println("TO WALLET")
-	fmt.Println("BALANCE: " + strconv.Itoa(to.balance))
-	fmt.Println("FROM WALLET")
-	fmt.Println("BALANCE: " + strconv.Itoa(from.balance))
 
 	/* Prepare to store into ledger again */
 	fromJSONasBytes, _ := json.Marshal(from)
 	err = APIstub.PutState(from.id, fromJSONasBytes)
 	if err != nil {
-		return shim.Error("Error saving the state of wallet [F]")
+		return shim.Error("Error saving the state of wallet [F]" + err)
 	}
 
 	toJSONasBytes, _ := json.Marshal(to)
 	err = APIstub.PutState(to.id, toJSONasBytes)
 	if err != nil {
-		return shim.Error("Error saving the state of the wallet [T]")
+		return shim.Error("Error saving the state of the wallet [T]" + err)
 	}
 
 	/* Success! */
@@ -222,9 +218,8 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 	}
 
 	jsonResp = "{\"ID\":\"" + id + "\",\"RESULT\":\"" + string(valAsBytes) + "\"}"
-	fmt.Printf("Query Response:%s\n", jsonResp)
 	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
-	return shim.Success(valAsBytes)
+	return shim.Success(jsonResp)
 }
 
 func (s *SmartContract) deleteWallet(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
