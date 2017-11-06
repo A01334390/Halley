@@ -56,6 +56,8 @@ func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) sc.Response 
 		return s.createWallet(APIstub, args)
 	} else if function == "queryWallet" {
 		return s.queryWallet(APIstub, args)
+	} else if function == "delete" {
+		return s.delete(APIstub, delete)
 	}
 
 	// If nothing was invoked, launch an error
@@ -219,6 +221,23 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 		return shim.Error(jsonResp)
 	}
 
+	jsonResp := "{\"ID\":\"" + id + "\",\"info\":\"" + string(valAsBytes) + "\"}"
+	fmt.Printf("Query Response:%s\n", jsonResp)
 	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
 	return shim.Success(valAsBytes)
+}
+
+func (s *SmartContract) delete(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+	if len(args) < 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+	id := args[0]
+	//Delete the key from the state on the ledger
+	err := APIstub.DelState(id)
+	if err != nil {
+		return shim.Error("Failed to delete state")
+	}
+
+	return shim.Success(nil)
 }
