@@ -61,8 +61,6 @@ func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) sc.Response 
 		return s.getWalletHistory(APIstub, args)
 	} else if function == "queryWallet" {
 		return s.queryWallet(APIstub, args)
-	} else if function == "initLedger" {
-		return s.initLedger(APIstub, args)
 	} else if function == "delete" {
 		return s.delete(APIstub, args)
 	} else if function == "queryWalletGeneric" {
@@ -121,7 +119,10 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 	json.Unmarshal(toAsBytes, &to)
 
 	/** Make the transfer */
-	funds := strconv.Atoi(args[2])
+	funds, err := strconv.Atoi(args[2])
+	if err != nil {
+		return shim.Error("Can't parse this to an Integer")
+	}
 	from.balance -= funds
 	to.balance += funds
 
@@ -129,13 +130,13 @@ func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args 
 	fromJSONasBytes, _ := json.Marshal(from)
 	err = APIstub.PutState(args[0], fromJSONasBytes)
 	if err != nil {
-		return shim.Error(err.Error)
+		return shim.Error("Persisting the wallet failed")
 	}
 
 	toJSONasBytes, _ := json.Marshal(to)
 	err = APIstub.PutState(args[1], toJSONasBytes)
 	if err != nil {
-		return shim.Error(err.Error)
+		return shim.Error("Persisting the wallet failed")
 	}
 
 	/* If everything went right */
@@ -156,7 +157,7 @@ func (s *SmartContract) getWalletsByRange(APIstub shim.ChaincodeStubInterface, a
 	}
 	resultsIterator, err := APIstub.GetStateByRange(args[0], args[1])
 	if err != nil {
-		return shim.Error(err.Error())
+		return shim.Error("An error ocurred!")
 	}
 	defer resultsIterator.Close()
 	//buffer is a JSON array containing QueryResults
@@ -211,7 +212,7 @@ func (s *SmartContract) createWallet(APIstub shim.ChaincodeStubInterface, args [
 	/** We save the wallet */
 
 	walletAsBytes, _ := json.Marshal(wallet)
-	APIstub.PutState(walletAsBytes)
+	APIstub.PutState(wallet.id, walletAsBytes)
 	return shim.Success(nil)
 }
 
@@ -229,7 +230,7 @@ func (s *SmartContract) getWalletHistory(APIstub shim.ChaincodeStubInterface, ar
 
 	resultsIterator, err := APIstub.GetHistoryForKey(args[0])
 	if err != nil {
-		return shim.Error(err.Error())
+		return shim.Error("Got an error")
 	}
 	defer resultsIterator.Close()
 
@@ -277,29 +278,6 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 
 	walletAsBytes, _ := APIstub.GetState(args[0])
 	return shim.Success(walletAsBytes)
-}
-
-/*
-* initLedger
-* This method intitializes the ledger fast and easily
-* [seed]	= Amount of accounts to be created
- */
-
-func (s *SmartContract) initLedger(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-	if len(args) < 1 {
-		return shim.Error("Incorrect number of arguments. Expecting 1")
-	}
-	i := 0
-	for i < len(args[0]) {
-		wallet := Wallet{
-			id:      md5.Sum([]byte(args[0])),
-			balance: strconv.Atoi(args[1]),
-			owner:   args[2],
-		}
-		walletAsBytes, _ := json.Marshal(wallet)
-		APIstub.PutState(wallet.id, walletAsBytes)
-		i = i + 1
-	}
 }
 
 /*
