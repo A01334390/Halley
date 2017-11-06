@@ -221,7 +221,7 @@ func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []
 		return shim.Error(jsonResp)
 	}
 
-	jsonResp := "{\"ID\":\"" + id + "\",\"RESULT\":\"" + string(valAsBytes) + "\"}"
+	jsonResp = "{\"ID\":\"" + id + "\",\"RESULT\":\"" + string(valAsBytes) + "\"}"
 	fmt.Printf("Query Response:%s\n", jsonResp)
 	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
 	return shim.Success(valAsBytes)
