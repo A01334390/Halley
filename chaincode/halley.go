@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
-	sc "github.com/hyperledger/fabric/protos/peer"
+	pb "github.com/hyperledger/fabric/protos/peer"
 )
 
 // ______  __      ___________
@@ -15,9 +16,12 @@ import (
 // _  __  / / /_/ /_  / _  / /  __/  /_/ /
 // /_/ /_/  \__,_/ /_/  /_/  \___/_\__, /
 //                                /____/
+// Made by Aabo Technologies © Server's Division
+// Built on September 1st, 2017
+// Perfection on November 7th, 2017
 
-// Define the smart contract Structure
-type SmartContract struct {
+/** This is the Smart Contract Structure */
+type SimpleChaincode struct {
 }
 
 /* Define the Wallet Structure with 3 properties
@@ -26,9 +30,19 @@ type SmartContract struct {
 / [Owner] <-- Owner that is the holder of a wallet
 */
 type Wallet struct {
-	id      string `json:"id"`
-	balance int    `json:"balance"`
-	owner   string `json:"owner"`
+	Address string `json:"address"`
+	Balance int    `json:"balance"`
+}
+
+/*
+* The main method is only relevant in unit test mode.
+* Included here for completeness
+ */
+func main() {
+	err := shim.Start(new(SimpleChaincode))
+	if err != nil {
+		fmt.Printf("Error starting Transaction Chaincode implementation: %s", err)
+	}
 }
 
 /*
@@ -36,7 +50,7 @@ type Wallet struct {
 * Best practice is to have any Ledger initialization as a separate function
  */
 
-func (s *SmartContract) Init(APIstub shim.ChaincodeStubInterface) sc.Response {
+func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	return shim.Success(nil)
 }
 
@@ -45,36 +59,112 @@ func (s *SmartContract) Init(APIstub shim.ChaincodeStubInterface) sc.Response {
 * The calling application program has also specified the particular smart contract function to be called, with arguments
  */
 
-func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) sc.Response {
+func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	// Retrieve the requested Smart Contract function and arguments
-	function, args := APIstub.GetFunctionAndParameters()
-	fmt.Println("invoke is running " + function)
+	function, args := stub.GetFunctionAndParameters()
+	fmt.Println("Invoke is running: " + function)
 	//Route to the appropiate handler function to interact with the ledger appropiately
-	if function == "transferFunds" {
-		return s.transferFunds(APIstub, args)
-	} else if function == "createWallet" {
-		return s.createWallet(APIstub, args)
-	} else if function == "queryWallet" {
-		return s.queryWallet(APIstub, args)
-	} else if function == "deleteWallet" {
-		return s.deleteWallet(APIstub, args)
+
+	if function == "initWallet" {
+		return t.initWallet(stub, args)
+	} else if function == "transferFunds" {
+		return t.transferFunds(stub, args)
+	} else if function == "readWallet" {
+		return t.readWallet(stub, args)
+	} else if function == "getWalletsByRange" {
+		return t.getWalletsByRange(stub, args)
 	}
 
 	// If nothing was invoked, launch an error
-	fmt.Println("Invoke did not find func: " + function)
+	fmt.Println("Invoke didn't find function: " + function)
 	return shim.Error("Received Unknown function invocation")
 }
 
 /*
-* The main method is only relevant in unit test mode.
-* Included here for completeness
+* initWallet
+* This method creates a wallet and initializes it into the system
+* [id]		= This is a number that identifies the wallet
+* [balance]	= This is the numerical balance of the account
  */
-func main() {
-	//Create a new Smart Contract
-	err := shim.Start(new(SmartContract))
-	if err != nil {
-		fmt.Printf("Error creating a new Smart Contract: %s", err)
+
+func (t *SimpleChaincode) initWallet(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var err error
+	// 	  0			  1
+	// Address	Initial Balance
+
+	if len(args) != 2 {
+		return shim.Error("Incorrect Number of arguments, expecting 2")
 	}
+
+	//Input Sanitation as this part is really important
+	fmt.Printf(" - Initializing Wallet - ")
+
+	if len(args[0]) <= 0 || len(args[0]) <= 0 {
+		return shim.Error("Arguments can't be non empty")
+	}
+
+	//Variable initialization
+	address := args[0]
+	balance, _ := strconv.Atoi(args[1])
+	if err != nil {
+		return shim.Error("2nd Argument must be a numeric string")
+	}
+
+	//Create the Wallet object and convert it to bytes to save
+	Wallet := Wallet{Address: address, Balance: balance}
+	WalletJSONasBytes, err := json.Marshal(Wallet)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	//Save the Wallet to the blockchain
+	err = stub.PutState(address, WalletJSONasBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	//Create an Index to look faster for Wallets
+	indexName := "address~balance"
+	addressBalanceIndexKey, err := stub.CreateCompositeKey(indexName, []string{Wallet.Address, strconv.Itoa(Wallet.Balance)})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	//Save Index to State
+	value := []byte{0x00}
+	stub.PutState(addressBalanceIndexKey, value)
+
+	//Wallet saved and indexed, return success
+	fmt.Println(" - END Wallet Init - ")
+	return shim.Success(nil)
+}
+
+/*
+* readWallet
+* This method returns the current state of a wallet on the ledger
+* [id]		= This is an md5 hash that identifies the wallet
+* (JSON)	= JSON Document with the current state of the wallet
+ */
+
+func (t *SimpleChaincode) readWallet(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var address, jsonResp string
+	var err error
+
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments, expecting the address to query")
+	}
+
+	address = args[0]
+	valAsBytes, err := stub.GetState(address)
+	if err != nil {
+		jsonResp = "{\"Error\":\"Failed to get state for " + address + "\"}"
+		return shim.Error(jsonResp)
+	} else if valAsBytes == nil {
+		jsonResp = "{\"Error\":\"Wallet does not exist: " + address + "\"}"
+		return shim.Error(jsonResp)
+	}
+
+	return shim.Success(valAsBytes)
 }
 
 /*
@@ -85,152 +175,117 @@ func main() {
 * [balance]	= This is the amount of money that it's being transfered
  */
 
-func (s *SmartContract) transferFunds(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+func (t *SimpleChaincode) transferFunds(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	//		 0			1		   2
+	//		from		to		balance
+
 	if len(args) < 3 {
-		return shim.Error("Incorrect Number of arguments. Expecting 3")
-	}
-	/* Get the [FROM] wallet state */
-	fromAsBytes, err := APIstub.GetState(args[0])
-	if err != nil {
-		return shim.Error("Failed to get [FROM] Wallet")
-	} else if fromAsBytes == nil {
-		return shim.Error("Wallet [FROM] does not exist")
-	}
-
-	/*Get the [TO] wallet state */
-	toAsBytes, err := APIstub.GetState(args[1])
-	if err != nil {
-		return shim.Error("Failed to get [TO] Wallet")
-	} else if fromAsBytes == nil {
-		return shim.Error("Wallet [TO] does not exist")
-	}
-
-	/* Unmarshal [FROM] wallet */
-	from := Wallet{}
-	err = json.Unmarshal(fromAsBytes, &from)
-	if err != nil {
-		return shim.Error("Failed to unmarshal wallet")
-	}
-
-	/*Unmarshal [TO] wallet */
-	to := Wallet{}
-	err = json.Unmarshal(toAsBytes, &to)
-	if err != nil {
-		return shim.Error("Failed to unmarshal wallet")
-	}
-
-	/* Make the transaction */
-	funds, err := strconv.Atoi(args[2])
-	if err != nil {
-		return shim.Error("Failed to parse into Integer")
-	}
-
-	from.balance = from.balance - funds
-	to.balance = to.balance + funds
-
-	/* Prepare to store into ledger again */
-	fromJSONasBytes, _ := json.Marshal(from)
-	err = APIstub.PutState(from.id, fromJSONasBytes)
-	if err != nil {
-		return shim.Error("Error saving the state of wallet [F]")
-	}
-
-	toJSONasBytes, _ := json.Marshal(to)
-	err = APIstub.PutState(to.id, toJSONasBytes)
-	if err != nil {
-		return shim.Error("Error saving the state of the wallet [T]")
-	}
-
-	/* Success! */
-	return shim.Success(nil)
-}
-
-/*
-* createWallet
-* This method creates a wallet and initializes it into the system
-* [id]		= This is a number that identifies the wallet
-* [balance]	= This is the numerical balance of the account
- */
-
-func (s *SmartContract) createWallet(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 3")
 	}
 
-	/** We create the wallet */
-	id := args[0]
-	balance, err := strconv.Atoi(args[1])
-	if err != nil {
-		return shim.Error("2nd argument can't be parsed into an Integer")
-	}
-	owner := args[2]
+	//Variable setting from - to - ammount to be transfered
+	from := args[0]
+	to := args[1]
+	transfer, _ := strconv.Atoi(args[2])
 
-	/** Check if the wallet already exists */
-	walletAsBytes, err := APIstub.GetState(id)
+	//if Wallet 'from' doesn't exist, then the transfer halts
+	fromAsBytes, err := stub.GetState(from)
 	if err != nil {
-		return shim.Error("Failed to get marble")
-	} else if walletAsBytes != nil {
-		fmt.Println("This wallet already exists: " + id)
-		return shim.Error("This wallet already exists: " + id)
+		return shim.Error("Failed to get Wallet: " + err.Error())
+	} else if fromAsBytes == nil {
+		return shim.Error("Wallet 1 doesn't exist")
 	}
 
-	/** Create the wallet object and marshal it to JSON */
-	wallet := &Wallet{id, balance, owner}
-	walletJSONasBytes, err := json.Marshal(wallet)
+	//if Wallet 'to' doesn't exist, then the transfer halts
+	toAsBytes, err := stub.GetState(to)
 	if err != nil {
-		return shim.Error("Failed to marshal to JSON")
+		return shim.Error("Failed to get Wallet: " + err.Error())
+	} else if toAsBytes == nil {
+		return shim.Error("Wallet 1 doesn't exist")
 	}
 
-	/** We save the wallet */
-	err = APIstub.PutState(id, walletJSONasBytes)
+	//Make Wallet 'from' usable for us
+	WalletFrom := Wallet{}
+	err = json.Unmarshal(fromAsBytes, &WalletFrom)
 	if err != nil {
-		return shim.Error("Failed to save the wallet")
+		return shim.Error(err.Error())
 	}
-	/** Success! */
+
+	//Make Wallet 'To' usable for us
+	WalletTo := Wallet{}
+	err = json.Unmarshal(toAsBytes, &WalletTo)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	//This is the main balance transfer mechanism
+	//As far as we know, this part is really simple
+	//1. Checks if an Wallet has enough funds to transfer to another Wallet
+	//2. Checks if the transfer amount is not negative (that'd be really weird)
+	//3. Then, it simply 'transfers' it.
+
+	WalletTo.Balance += transfer
+	WalletFrom.Balance -= transfer
+
+	//The state is updated to the blockchain for both
+	//the 'to' Wallet and the 'from' Wallet
+
+	WalletToAsBytes, _ := json.Marshal(WalletTo)
+	err = stub.PutState(to, WalletToAsBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	WalletFromAsBytes, _ := json.Marshal(WalletFrom)
+	err = stub.PutState(from, WalletFromAsBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	fmt.Println(" - END Transaction (success) - ")
 	return shim.Success(nil)
 }
 
-/*
-* queryWallet
-* This method returns the current state of a wallet on the ledger
-* [id]		= This is an md5 hash that identifies the wallet
-* (JSON)	= JSON Document with the current state of the wallet
- */
-
-func (s *SmartContract) queryWallet(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-	var id, jsonResp string
-	var err error
-
-	if len(args) < 1 {
-		return shim.Error("Incorrect number of arguments. Expecting 1")
+func (t *SimpleChaincode) getWalletsByRange(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	if len(args) < 2 {
+		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
 
-	fmt.Println(" ===== START QUERYING WALLET =====")
+	startKey := args[0]
+	endKey := args[1]
 
-	id = args[0]
-	valAsBytes, err := APIstub.GetState(id) // Get the wallet from the chaincode state
+	resultsIterator, err := stub.GetStateByRange(startKey, endKey)
 	if err != nil {
-		jsonResp = "{\"Error\":\"Failed to get state for " + id + "\"}"
-		return shim.Error(jsonResp)
-	} else if valAsBytes == nil {
-		jsonResp = "{\"Error\":\"Wallet does not exist: " + id + "\"}"
-		return shim.Error(jsonResp)
+		return shim.Error(err.Error())
 	}
-	fmt.Println(" ===== QUERYING WALLET COMPLETE =====")
-	return shim.Success(valAsBytes)
-}
+	defer resultsIterator.Close()
 
-func (s *SmartContract) deleteWallet(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-	if len(args) < 1 {
-		return shim.Error("Incorrect number of arguments. Expecting 1")
+	//Buffer is a JSON Array containing QueryResults
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+
+	bArrayMemberAlreadyWritten := false
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		//Add a comma before array members, supress ir for the first array member
+		if bArrayMemberAlreadyWritten == true {
+			buffer.WriteString(",")
+		}
+		buffer.WriteString("{\"Key\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(queryResponse.Key)
+		buffer.WriteString("\"")
+
+		buffer.WriteString(", \"Record\":")
+		//Record is a JSON object, so we write as-is
+		buffer.WriteString(string(queryResponse.Value))
+		buffer.WriteString("}")
+		bArrayMemberAlreadyWritten = true
 	}
-
-	id := args[0]
-	//Delete the key from the state on the ledger
-	err := APIstub.DelState(id)
-	if err != nil {
-		return shim.Error("Failed to delete state")
-	}
-
-	return shim.Success(nil)
+	buffer.WriteString("]")
+	fmt.Printf("- get Wallet by RANGE queryResult:\n%s\n", buffer.String())
+	return shim.Success(buffer.Bytes())
 }
