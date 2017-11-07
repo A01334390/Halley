@@ -5,21 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
 )
 
-//SimpleChaincode implementation
+/** This is the Smart Contract Structure */
 type SimpleChaincode struct {
 }
 
-// We build the only and most important object, the User
-// We have an address related to the user, where the money will go
-// We have a balance related to the user, the amount of money he/she/they hold
+/** We have the Wallet */
 
-type user struct {
+type Wallet struct {
 	Address string `json:"address"`
 	Balance int    `json:"balance"`
 }
@@ -45,29 +42,28 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("Invoke is running: " + function)
 	//Simple if statement for function handling
 
-	if function == "initUser" {
-		return t.initUser(stub, args)
+	if function == "initWallet" {
+		return t.initWallet(stub, args)
 	} else if function == "transferFunds" {
 		return t.transferFunds(stub, args)
-	} else if function == "readUser" {
-		return t.readUser(stub, args)
-	} else if function == "getUsersByRange" {
-		return t.getUsersByRange(stub, args)
-	} else if function == "getHistoyForUser" {
-		return t.getHistoyForUser(stub, args)
+	} else if function == "readWallet" {
+		return t.readWallet(stub, args)
+	} else if function == "getWalletsByRange" {
+		return t.getWalletsByRange(stub, args)
 	}
+
 	//If the function needed didn't exist, then we return an error
 	fmt.Println("Invoke didn't find function: " + function)
 	return shim.Error("Received Unknown function invocation")
 }
 
-//InitUser assigns the address and initial balance of an user account
+//InitWallet assigns the address and initial balance of an Wallet account
 //1. Receives and sanitizes the input
-//2. Assigns it to an user object
-//3. Saves the user to the blockchain
-//4. Adds the user to an index to find it faster later
+//2. Assigns it to an Wallet object
+//3. Saves the Wallet to the blockchain
+//4. Adds the Wallet to an index to find it faster later
 
-func (t *SimpleChaincode) initUser(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) initWallet(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var err error
 	// 	  0			  1
 	// Address	Initial Balance
@@ -77,7 +73,7 @@ func (t *SimpleChaincode) initUser(stub shim.ChaincodeStubInterface, args []stri
 	}
 
 	//Input Sanitation as this part is really important
-	fmt.Printf(" - Initializing User - ")
+	fmt.Printf(" - Initializing Wallet - ")
 
 	if len(args[0]) <= 0 || len(args[0]) <= 0 {
 		return shim.Error("Arguments can't be non empty")
@@ -90,22 +86,22 @@ func (t *SimpleChaincode) initUser(stub shim.ChaincodeStubInterface, args []stri
 		return shim.Error("2nd Argument must be a numeric string")
 	}
 
-	//Create the user object and convert it to bytes to save
-	user := user{Address: address, Balance: balance}
-	userJSONasBytes, err := json.Marshal(user)
+	//Create the Wallet object and convert it to bytes to save
+	Wallet := Wallet{Address: address, Balance: balance}
+	WalletJSONasBytes, err := json.Marshal(Wallet)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	//Save the user to the blockchain
-	err = stub.PutState(address, userJSONasBytes)
+	//Save the Wallet to the blockchain
+	err = stub.PutState(address, WalletJSONasBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	//Create an Index to look faster for Users
+	//Create an Index to look faster for Wallets
 	indexName := "address~balance"
-	addressBalanceIndexKey, err := stub.CreateCompositeKey(indexName, []string{user.Address, strconv.Itoa(user.Balance)})
+	addressBalanceIndexKey, err := stub.CreateCompositeKey(indexName, []string{Wallet.Address, strconv.Itoa(Wallet.Balance)})
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -114,17 +110,17 @@ func (t *SimpleChaincode) initUser(stub shim.ChaincodeStubInterface, args []stri
 	value := []byte{0x00}
 	stub.PutState(addressBalanceIndexKey, value)
 
-	//User saved and indexed, return success
-	fmt.Println(" - END User Init - ")
+	//Wallet saved and indexed, return success
+	fmt.Println(" - END Wallet Init - ")
 	return shim.Success(nil)
 }
 
-//ReadUser searches for an user by address to look at it's information
+//ReadWallet searches for an Wallet by address to look at it's information
 //1. We take the data and sanitize it
-//2. We search for this user on the Blockchain
-//3. We return the user data as a JSON Document
+//2. We search for this Wallet on the Blockchain
+//3. We return the Wallet data as a JSON Document
 
-func (t *SimpleChaincode) readUser(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) readWallet(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var address, jsonResp string
 	var err error
 
@@ -138,20 +134,20 @@ func (t *SimpleChaincode) readUser(stub shim.ChaincodeStubInterface, args []stri
 		jsonResp = "{\"Error\":\"Failed to get state for " + address + "\"}"
 		return shim.Error(jsonResp)
 	} else if valAsBytes == nil {
-		jsonResp = "{\"Error\":\"User does not exist: " + address + "\"}"
+		jsonResp = "{\"Error\":\"Wallet does not exist: " + address + "\"}"
 		return shim.Error(jsonResp)
 	}
 
 	return shim.Success(valAsBytes)
 }
 
-//TransferFunds transfers funds from an user to the other
+//TransferFunds transfers funds from an Wallet to the other
 //[NOTE] This part REALLY needs to be as minimal as possible
 //1. We take the input and sanitize it
-//2. We search for both users in the blockchain
-//3. There's a check where an user can only spend as much as he has
+//2. We search for both Wallets in the blockchain
+//3. There's a check where an Wallet can only spend as much as he has
 //4. Funds are transfered
-//5. User states are updated and pushed to the Blockchain
+//5. Wallet states are updated and pushed to the Blockchain
 
 func (t *SimpleChaincode) transferFunds(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	//		 0			1		   2
@@ -166,56 +162,56 @@ func (t *SimpleChaincode) transferFunds(stub shim.ChaincodeStubInterface, args [
 	to := args[1]
 	transfer, _ := strconv.Atoi(args[2])
 
-	//if user 'from' doesn't exist, then the transfer halts
+	//if Wallet 'from' doesn't exist, then the transfer halts
 	fromAsBytes, err := stub.GetState(from)
 	if err != nil {
-		return shim.Error("Failed to get User: " + err.Error())
+		return shim.Error("Failed to get Wallet: " + err.Error())
 	} else if fromAsBytes == nil {
-		return shim.Error("User 1 doesn't exist")
+		return shim.Error("Wallet 1 doesn't exist")
 	}
 
-	//if user 'to' doesn't exist, then the transfer halts
+	//if Wallet 'to' doesn't exist, then the transfer halts
 	toAsBytes, err := stub.GetState(to)
 	if err != nil {
-		return shim.Error("Failed to get User: " + err.Error())
+		return shim.Error("Failed to get Wallet: " + err.Error())
 	} else if toAsBytes == nil {
-		return shim.Error("User 1 doesn't exist")
+		return shim.Error("Wallet 1 doesn't exist")
 	}
 
-	//Make User 'from' usable for us
-	userFrom := user{}
-	err = json.Unmarshal(fromAsBytes, &userFrom)
+	//Make Wallet 'from' usable for us
+	WalletFrom := Wallet{}
+	err = json.Unmarshal(fromAsBytes, &WalletFrom)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	//Make User 'To' usable for us
-	userTo := user{}
-	err = json.Unmarshal(toAsBytes, &userTo)
+	//Make Wallet 'To' usable for us
+	WalletTo := Wallet{}
+	err = json.Unmarshal(toAsBytes, &WalletTo)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
 	//This is the main balance transfer mechanism
 	//As far as we know, this part is really simple
-	//1. Checks if an user has enough funds to transfer to another user
+	//1. Checks if an Wallet has enough funds to transfer to another Wallet
 	//2. Checks if the transfer amount is not negative (that'd be really weird)
 	//3. Then, it simply 'transfers' it.
 
-	userTo.Balance += transfer
-	userFrom.Balance -= transfer
+	WalletTo.Balance += transfer
+	WalletFrom.Balance -= transfer
 
 	//The state is updated to the blockchain for both
-	//the 'to' user and the 'from' user
+	//the 'to' Wallet and the 'from' Wallet
 
-	userToAsBytes, _ := json.Marshal(userTo)
-	err = stub.PutState(to, userToAsBytes)
+	WalletToAsBytes, _ := json.Marshal(WalletTo)
+	err = stub.PutState(to, WalletToAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	userFromAsBytes, _ := json.Marshal(userFrom)
-	err = stub.PutState(from, userFromAsBytes)
+	WalletFromAsBytes, _ := json.Marshal(WalletFrom)
+	err = stub.PutState(from, WalletFromAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -224,7 +220,7 @@ func (t *SimpleChaincode) transferFunds(stub shim.ChaincodeStubInterface, args [
 	return shim.Success(nil)
 }
 
-func (t *SimpleChaincode) getUsersByRange(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *SimpleChaincode) getWalletsByRange(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	if len(args) < 2 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
@@ -264,72 +260,6 @@ func (t *SimpleChaincode) getUsersByRange(stub shim.ChaincodeStubInterface, args
 		bArrayMemberAlreadyWritten = true
 	}
 	buffer.WriteString("]")
-	fmt.Printf("- get USER by RANGE queryResult:\n%s\n", buffer.String())
-	return shim.Success(buffer.Bytes())
-}
-
-func (t *SimpleChaincode) getHistoyForUser(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-
-	if len(args) < 1 {
-		return shim.Error("Incorrect number of arguments. Expecting 1")
-	}
-
-	address := args[0]
-
-	fmt.Printf("- start getHistoyForUser: %s\n", address)
-
-	resultsIterator, err := stub.GetHistoryForKey(address)
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-	defer resultsIterator.Close()
-
-	// buffer is a JSON array containing historic values for the marble
-	var buffer bytes.Buffer
-	buffer.WriteString("[")
-
-	bArrayMemberAlreadyWritten := false
-	for resultsIterator.HasNext() {
-		response, err := resultsIterator.Next()
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-		// Add a comma before array members, suppress it for the first array member
-		if bArrayMemberAlreadyWritten == true {
-			buffer.WriteString(",")
-		}
-		buffer.WriteString("{\"TxId\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(response.TxId)
-		buffer.WriteString("\"")
-
-		buffer.WriteString(", \"Value\":")
-
-		// if it was a delete operation on given key, then we need to set the
-		//corresponding value null. Else, we will write the response.Value
-		//as-is (as the Value itself a JSON user)
-		if response.IsDelete {
-			buffer.WriteString("null")
-		} else {
-			buffer.WriteString(string(response.Value))
-		}
-
-		buffer.WriteString(", \"Timestamp\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(time.Unix(response.Timestamp.Seconds, int64(response.Timestamp.Nanos)).String())
-		buffer.WriteString("\"")
-
-		buffer.WriteString(", \"IsDelete\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(strconv.FormatBool(response.IsDelete))
-		buffer.WriteString("\"")
-
-		buffer.WriteString("}")
-		bArrayMemberAlreadyWritten = true
-	}
-	buffer.WriteString("]")
-
-	fmt.Printf("- getHistoryForMarble returning:\n%s\n", buffer.String())
-
+	fmt.Printf("- get Wallet by RANGE queryResult:\n%s\n", buffer.String())
 	return shim.Success(buffer.Bytes())
 }
